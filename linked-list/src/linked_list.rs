@@ -1,7 +1,12 @@
-
 // https://rust-unofficial.github.io/too-many-lists/index.html
 pub struct LinkedList<T> {
     head: Link<T>,
+}
+
+pub struct IntoIter<T> (LinkedList<T>);
+
+pub struct Iter<'a, T> {
+    next: Option<&'a LinkedNode<T>>,
 }
 
 struct LinkedNode<T> {
@@ -32,12 +37,12 @@ impl<T> LinkedList<T> {
             })
     }
 
-    pub fn peek(&self) -> Option<&T>{
+    pub fn peek(&self) -> Option<&T> {
         self.head.as_ref()
             .map(|node| &node.value)
     }
 
-    pub fn peek_mut(&mut self) -> Option<&mut T>{
+    pub fn peek_mut(&mut self) -> Option<&mut T> {
         self.head.as_mut()
             .map(|node| &mut node.value)
     }
@@ -51,6 +56,38 @@ impl<T> Drop for LinkedList<T> {
         }
     }
 }
+
+impl<T> LinkedList<T> {
+    pub fn into_iter(self) -> IntoIter<T> {
+        IntoIter(self)
+    }
+}
+
+impl <'a, T> LinkedList<T> {
+    pub fn iter(&'a self) -> Iter<'a, T> {
+        Iter { next: self.head.as_deref() }
+    }
+}
+
+impl<T> Iterator for IntoIter<T> {
+    type Item = T;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.0.pop()
+    }
+}
+
+impl<'a, T> Iterator for Iter<'a, T> {
+    type Item = &'a T;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.next.map(|node| {
+            self.next = node.next.as_deref();
+            &node.value
+        })
+    }
+}
+
 
 #[cfg(test)]
 mod test {
@@ -90,9 +127,42 @@ mod test {
         let mut list = LinkedList::new();
         assert_eq!(list.peek(), None);
         assert_eq!(list.peek_mut(), None);
-        list.push(1); list.push(2); list.push(3);
+        list.push(1);
+        list.push(2);
+        list.push(3);
 
         assert_eq!(list.peek(), Some(&3));
         assert_eq!(list.peek_mut(), Some(&mut 3));
+        list.peek_mut().map(|value| {
+            *value = 42
+        });
+
+        assert_eq!(list.peek(), Some(&42));
+        assert_eq!(list.pop(), Some(42));
+    }
+
+    #[test]
+    fn into_iter() {
+        let mut list = LinkedList::new();
+        list.push(1);
+        list.push(2);
+        list.push(3);
+
+        let mut iter = list.into_iter();
+        assert_eq!(iter.next(), Some(3));
+        assert_eq!(iter.next(), Some(2));
+        assert_eq!(iter.next(), Some(1));
+        assert_eq!(iter.next(), None);
+    }
+
+    #[test]
+    fn iter() {
+        let mut list = LinkedList::new();
+        list.push(1); list.push(2); list.push(3);
+
+        let mut iter = list.iter();
+        assert_eq!(iter.next(), Some(&3));
+        assert_eq!(iter.next(), Some(&2));
+        assert_eq!(iter.next(), Some(&1));
     }
 }
