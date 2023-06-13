@@ -9,6 +9,10 @@ pub struct Iter<'a, T> {
     next: Option<&'a LinkedNode<T>>,
 }
 
+pub struct IterMut<'a, T> {
+    next: Option<&'a mut LinkedNode<T>>,
+}
+
 struct LinkedNode<T> {
     value: T,
     next: Link<T>,
@@ -63,9 +67,15 @@ impl<T> LinkedList<T> {
     }
 }
 
-impl <'a, T> LinkedList<T> {
-    pub fn iter(&'a self) -> Iter<'a, T> {
+impl <T> LinkedList<T> {
+    pub fn iter(&self) -> Iter<'_, T> {
         Iter { next: self.head.as_deref() }
+    }
+}
+
+impl <T> LinkedList<T> {
+    pub fn iter_mut(&mut self) -> IterMut<'_, T> {
+        IterMut { next: self.head.as_deref_mut() }
     }
 }
 
@@ -80,7 +90,7 @@ impl<T> Iterator for IntoIter<T> {
 impl<'a, T> Iterator for Iter<'a, T> {
     type Item = &'a T;
 
-    fn next(&mut self) -> Option<Self::Item> {
+    fn next<'b>(&'b mut self) -> Option<&'a T> {
         self.next.map(|node| {
             self.next = node.next.as_deref();
             &node.value
@@ -88,6 +98,16 @@ impl<'a, T> Iterator for Iter<'a, T> {
     }
 }
 
+impl<'a, T> Iterator for IterMut<'a, T> {
+    type Item = &'a mut T;
+
+    fn next<'b>(&'b mut self) -> Option<&'a mut T> {
+        self.next.take().map(|node| {
+            self.next = node.next.as_deref_mut();
+            &mut node.value
+        })
+    }
+}
 
 #[cfg(test)]
 mod test {
@@ -164,5 +184,16 @@ mod test {
         assert_eq!(iter.next(), Some(&3));
         assert_eq!(iter.next(), Some(&2));
         assert_eq!(iter.next(), Some(&1));
+    }
+
+    #[test]
+    fn iter_mut() {
+        let mut list = LinkedList::new();
+        list.push(1); list.push(2); list.push(3);
+
+        let mut iter = list.iter_mut();
+        assert_eq!(iter.next(), Some(&mut 3));
+        assert_eq!(iter.next(), Some(&mut 2));
+        assert_eq!(iter.next(), Some(&mut 1));
     }
 }
