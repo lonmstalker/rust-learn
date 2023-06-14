@@ -1,5 +1,4 @@
 use crate::linked_list::LinkedList;
-use crate::immutable_linked_list::ImmutableList;
 
 mod linked_list;
 mod safe_deque;
