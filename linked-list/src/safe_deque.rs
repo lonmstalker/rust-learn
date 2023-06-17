@@ -75,25 +75,25 @@ impl<T> Deque<T> {
         })
     }
 
-    pub fn peek_front(&self) -> Option<Ref<T>>{
+    pub fn peek_front(&self) -> Option<Ref<T>> {
         self.first.as_ref().map(|node| {
             Ref::map(node.borrow(), |rf| &rf.value)
         })
     }
 
-    pub fn peek_front_mut(&self) -> Option<RefMut<T>>{
+    pub fn peek_front_mut(&self) -> Option<RefMut<T>> {
         self.first.as_ref().map(|node| {
             RefMut::map(node.borrow_mut(), |rf| &mut rf.value)
         })
     }
 
-    pub fn peek_back(&self) -> Option<Ref<T>>{
+    pub fn peek_back(&self) -> Option<Ref<T>> {
         self.last.as_ref().map(|node| {
             Ref::map(node.borrow(), |rf| &rf.value)
         })
     }
 
-    pub fn peek_back_mut(&self) -> Option<RefMut<T>>{
+    pub fn peek_back_mut(&self) -> Option<RefMut<T>> {
         self.last.as_ref().map(|node| {
             RefMut::map(node.borrow_mut(), |rf| &mut rf.value)
         })
@@ -183,7 +183,9 @@ mod test {
         assert!(list.peek_front_mut().is_none());
         assert!(list.peek_back_mut().is_none());
 
-        list.push_front(1); list.push_front(2); list.push_front(3);
+        list.push_front(1);
+        list.push_front(2);
+        list.push_front(3);
 
         assert_eq!(&*list.peek_front().unwrap(), &3);
         assert_eq!(&mut *list.peek_front_mut().unwrap(), &mut 3);
