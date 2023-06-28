@@ -37,7 +37,7 @@ impl<T> UnsafeQueue<T> {
             next: null_mut(),
         }));
 
-        if !self.tail.is_null() {
+        if !self.tail.is_null() {   
             unsafe {
                 (*self.tail).next = new_tail;
             }
