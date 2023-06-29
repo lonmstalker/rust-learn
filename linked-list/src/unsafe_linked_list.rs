@@ -13,6 +13,13 @@ pub struct UnsafeLinkedList<T> {
     _boo: PhantomData<T>,
 }
 
+pub struct Iter<'a, T> {
+    first: Link<T>,
+    last: Link<T>,
+    len: usize,
+    _boo: PhantomData<T>,
+}
+
 type Link<T> = Option<NonNull<Node<T>>>;
 
 struct Node<T> {
@@ -42,9 +49,6 @@ impl<T> UnsafeLinkedList<T> {
                 (*old.as_ptr()).next = Some(new);
                 (*new.as_ptr()).prev = Some(old);
             } else {
-                debug_assert!(self.first.is_none());
-                debug_assert!(self.last.is_none());
-                debug_assert_eq!(0, self.len);
                 self.last = Some(new);
             }
             self.first = Some(new);
@@ -74,6 +78,86 @@ impl<T> UnsafeLinkedList<T> {
 
     pub fn len(&self) -> usize {
         self.len
+    }
+}
+
+impl<T> UnsafeLinkedList<T> {
+    pub fn first(&self) -> Option<&T> {
+        unsafe { Some(&(*self.first?.as_ptr()).value) }
+    }
+
+    pub fn first_mut(&mut self) -> Option<&mut T> {
+        unsafe {
+            self.first.map(|node| &mut ((*node.as_ptr()).value))
+        }
+    }
+}
+
+impl<'a, T> IntoIterator for &'a UnsafeLinkedList<T> {
+    type Item = &'a T;
+    type IntoIter = Iter<'a, T>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.iter()
+    }
+}
+
+impl<'a, T> Iterator for Iter<'a, T> {
+    type Item = &'a T;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.len > 0 {
+            unsafe {
+                self.first.map(|node| unsafe {
+                    self.first = (*node.as_ptr()).next;
+                    self.len -= 1;
+                    &(*node.as_ptr()).value
+                })
+            }
+        } else {
+            None
+        }
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        (self.len, Some(self.len))
+    }
+}
+
+impl<'a, T> DoubleEndedIterator for Iter<'a, T> {
+    fn next_back(&mut self) -> Option<Self::Item> {
+        if self.len > 0 {
+            self.last.map(|node| unsafe {
+                self.last = (*node.as_ptr()).next;
+                self.len -=1;
+                &(*node.as_ptr()).value
+            })
+        } else {
+            None
+        }
+    }
+}
+
+impl<T> UnsafeLinkedList<T> {
+    pub fn iter(&self) -> Iter<T> {
+        Iter {
+            first: self.first,
+            last: self.last,
+            len: self.len,
+            _boo: PhantomData,
+        }
+    }
+}
+
+impl<'a, T> ExactSizeIterator for Iter<'a, T> {
+    fn len(&self) -> usize {
+        self.len
+    }
+}
+
+impl<T> Drop for UnsafeLinkedList<T> {
+    fn drop(&mut self) {
+        while Some(_) = self.pop_first() {}
     }
 }
 
