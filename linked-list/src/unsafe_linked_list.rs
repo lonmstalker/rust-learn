@@ -1,9 +1,9 @@
 use std::cmp::Ordering;
-use std::fmt;
 use std::fmt::Debug;
 use std::hash::{Hash, Hasher};
 use std::marker::PhantomData;
 use std::ptr::NonNull;
+use std::{fmt, mem};
 
 /**
 run tests:
@@ -35,6 +35,12 @@ pub struct IntoIter<T> {
     list: UnsafeLinkedList<T>,
 }
 
+pub struct CursorMut<'a, T> {
+    cur: Link<T>,
+    list: &'a mut UnsafeLinkedList<T>,
+    index: Option<usize>,
+}
+
 type Link<T> = Option<NonNull<Node<T>>>;
 
 struct Node<T> {
@@ -50,6 +56,13 @@ impl<T> UnsafeLinkedList<T> {
             last: None,
             len: 0,
             _boo: PhantomData,
+        }
+    }
+    pub fn cursor_mut(&mut self) -> CursorMut<T> {
+        CursorMut {
+            list: self,
+            cur: None,
+            index: None,
         }
     }
 
@@ -138,23 +151,16 @@ impl<T> UnsafeLinkedList<T> {
     }
 
     pub fn first_mut(&mut self) -> Option<&mut T> {
-        unsafe {
-            self.first.map(|node| &mut ((*node.as_ptr()).value))
-        }
+        unsafe { self.first.map(|node| &mut ((*node.as_ptr()).value)) }
     }
 
     pub fn back(&self) -> Option<&T> {
-        unsafe {
-            self.last.map(|node| &(*node.as_ptr()).value)
-        }
+        unsafe { self.last.map(|node| &(*node.as_ptr()).value) }
     }
 
     pub fn back_mut(&mut self) -> Option<&mut T> {
-        unsafe {
-            self.last.map(|node| &mut (*node.as_ptr()).value)
-        }
+        unsafe { self.last.map(|node| &mut (*node.as_ptr()).value) }
     }
-
 }
 
 impl<'a, T> IntoIterator for &'a UnsafeLinkedList<T> {
@@ -283,9 +289,7 @@ impl<T> UnsafeLinkedList<T> {
     }
 
     pub fn into_iter(self) -> IntoIter<T> {
-        IntoIter {
-            list: self
-        }
+        IntoIter { list: self }
     }
 
     pub fn iter_mut(&mut self) -> IterMut<T> {
@@ -322,7 +326,7 @@ impl<T> UnsafeLinkedList<T> {
     }
 
     pub fn clear(&mut self) {
-        while let Some(_) = self.pop_first() {}
+        while self.pop_first().is_some() {}
     }
 }
 
@@ -349,7 +353,7 @@ impl<T: Clone> Clone for UnsafeLinkedList<T> {
 }
 
 impl<T> Extend<T> for UnsafeLinkedList<T> {
-    fn extend<I: IntoIterator<Item=T>>(&mut self, iter: I) {
+    fn extend<I: IntoIterator<Item = T>>(&mut self, iter: I) {
         for item in iter {
             self.push_back(item);
         }
@@ -357,7 +361,7 @@ impl<T> Extend<T> for UnsafeLinkedList<T> {
 }
 
 impl<T> FromIterator<T> for UnsafeLinkedList<T> {
-    fn from_iter<I: IntoIterator<Item=T>>(iter: I) -> Self {
+    fn from_iter<I: IntoIterator<Item = T>>(iter: I) -> Self {
         let mut list = Self::new();
         list.extend(iter);
         list
@@ -399,6 +403,199 @@ impl<T: Hash> Hash for UnsafeLinkedList<T> {
         self.len().hash(state);
         for item in self {
             item.hash(state);
+        }
+    }
+}
+
+impl<'a, T> CursorMut<'a, T> {
+    pub fn index(&self) -> Option<usize> {
+        self.index
+    }
+
+    pub fn move_next(&mut self) {
+        if let Some(cur) = self.cur {
+            unsafe {
+                self.cur = (*cur.as_ptr()).prev;
+                if self.cur.is_some() {
+                    *self.index.as_mut().unwrap() += 1;
+                } else {
+                    self.index = None;
+                }
+            }
+        } else if !self.list.is_empty() {
+            self.cur = self.list.first;
+            self.index = Some(0);
+        }
+    }
+
+    pub fn move_back(&mut self) {
+        if let Some(cur) = self.cur {
+            unsafe {
+                self.cur = (*cur.as_ptr()).next;
+                if self.cur.is_some() {
+                    *self.index.as_mut().unwrap() -= 1;
+                } else {
+                    self.index = None;
+                }
+            }
+        } else if !self.list.is_empty() {
+            self.cur = self.list.last;
+            self.index = Some(self.list.len - 1);
+        }
+    }
+
+    pub fn current(&mut self) -> Option<&mut T> {
+        unsafe { self.cur.map(|node| &mut (*node.as_ptr()).value) }
+    }
+
+    pub fn peek_next(&mut self) -> Option<&mut T> {
+        unsafe {
+            let next = if let Some(cur) = self.cur {
+                (*cur.as_ptr()).prev
+            } else {
+                self.list.first
+            };
+
+            next.map(|node| &mut (*node.as_ptr()).value)
+        }
+    }
+
+    pub fn peek_back(&mut self) -> Option<&mut T> {
+        unsafe {
+            let next = if let Some(cur) = self.cur {
+                (*cur.as_ptr()).next
+            } else {
+                self.list.last
+            };
+
+            next.map(|node| &mut (*node.as_ptr()).value)
+        }
+    }
+
+    pub fn split_before(&mut self) -> UnsafeLinkedList<T> {
+        if let Some(cur) = self.cur {
+            unsafe {
+                let old_len = self.list.len;
+                let old_idx = self.index.unwrap();
+                let prev = (*cur.as_ptr()).next.take();
+                let new_len = old_len - old_idx;
+
+                if let Some(prev) = prev {
+                    (*prev.as_ptr()).prev = None;
+                }
+
+                self.index = Some(0);
+                self.list.len = new_len;
+                self.list.first = self.cur;
+
+                UnsafeLinkedList {
+                    first: self.list.first,
+                    last: prev,
+                    len: old_len - new_len,
+                    _boo: PhantomData,
+                }
+            }
+        } else {
+            mem::replace(self.list, UnsafeLinkedList::new())
+        }
+    }
+
+    pub fn split_after(&mut self) -> UnsafeLinkedList<T> {
+        if let Some(cur) = self.cur {
+            unsafe {
+                let old_len = self.list.len;
+                let old_idx = self.index.unwrap();
+                let prev = (*cur.as_ptr()).prev.take();
+                let new_len = old_len - old_idx;
+
+                if let Some(prev) = prev {
+                    (*prev.as_ptr()).next = None;
+                }
+
+                self.index = Some(0);
+                self.list.len = new_len;
+                self.list.last = self.cur;
+
+                UnsafeLinkedList {
+                    first: self.list.last,
+                    last: prev,
+                    len: old_len - new_len,
+                    _boo: PhantomData,
+                }
+            }
+        } else {
+            mem::replace(self.list, UnsafeLinkedList::new())
+        }
+    }
+
+    pub fn splice_before(&mut self, mut input: UnsafeLinkedList<T>) {
+        unsafe {
+            if input.is_empty() {
+                return;
+            }
+            if let Some(cur) = self.cur {
+                let in_front = input.first.take().unwrap();
+                let in_back = input.last.take().unwrap();
+
+                if let Some(prev) = (*cur.as_ptr()).next {
+                    (*prev.as_ptr()).prev = Some(in_front);
+                    (*in_front.as_ptr()).next = Some(prev);
+                    (*cur.as_ptr()).next = Some(in_back);
+                    (*in_back.as_ptr()).prev = Some(cur);
+                } else {
+                    (*cur.as_ptr()).next = Some(in_back);
+                    (*in_back.as_ptr()).prev = Some(cur);
+                    self.list.first = Some(in_front);
+                }
+                *self.index.as_mut().unwrap() += input.len;
+            } else if let Some(back) = self.list.last {
+                let in_front = input.first.take().unwrap();
+                let in_back = input.last.take().unwrap();
+
+                (*back.as_ptr()).prev = Some(in_front);
+                (*in_front.as_ptr()).next = Some(back);
+                self.list.last = Some(in_back);
+            } else {
+                mem::swap(self.list, &mut input);
+            }
+
+            self.list.len += input.len;
+            input.len = 0;
+        }
+    }
+
+    pub fn splice_after(&mut self, mut input: UnsafeLinkedList<T>) {
+        unsafe {
+            if input.is_empty() {
+                return;
+            }
+            if let Some(cur) = self.cur {
+                let in_front = input.first.take().unwrap();
+                let in_back = input.last.take().unwrap();
+
+                if let Some(next) = (*cur.as_ptr()).prev {
+                    (*next.as_ptr()).next = Some(in_back);
+                    (*in_back.as_ptr()).prev = Some(next);
+                    (*cur.as_ptr()).prev = Some(in_front);
+                    (*in_front.as_ptr()).next = Some(cur);
+                } else {
+                    (*cur.as_ptr()).prev = Some(in_front);
+                    (*in_front.as_ptr()).next = Some(cur);
+                    self.list.last = Some(in_back);
+                }
+            } else if let Some(front) = self.list.first {
+                let in_front = input.first.take().unwrap();
+                let in_back = input.last.take().unwrap();
+
+                (*front.as_ptr()).next = Some(in_back);
+                (*in_back.as_ptr()).prev = Some(front);
+                self.list.first = Some(in_front);
+            } else {
+                mem::swap(self.list, &mut input);
+            }
+
+            self.list.len += input.len;
+            input.len = 0;
         }
     }
 }
@@ -647,7 +844,8 @@ mod test {
         assert_eq!(format!("{:?}", list), "[0, 1, 2, 3, 4, 5, 6, 7, 8, 9]");
 
         let list: UnsafeLinkedList<&str> = vec!["just", "one", "test", "more"]
-            .iter().copied()
+            .iter()
+            .copied()
             .collect();
         assert_eq!(format!("{:?}", list), r#"["just", "one", "test", "more"]"#);
     }
@@ -672,5 +870,137 @@ mod test {
         assert_eq!(map.remove(&list2), Some("list2"));
 
         assert!(map.is_empty());
+    }
+
+    #[test]
+    fn test_cursor_move_peek() {
+        let mut m: UnsafeLinkedList<u32> = UnsafeLinkedList::new();
+        m.extend([1, 2, 3, 4, 5, 6]);
+        let mut cursor = m.cursor_mut();
+        cursor.move_next();
+        assert_eq!(cursor.current(), Some(&mut 1));
+        assert_eq!(cursor.peek_next(), Some(&mut 2));
+        assert_eq!(cursor.peek_back(), None);
+        assert_eq!(cursor.index(), Some(0));
+        cursor.move_back();
+        assert_eq!(cursor.current(), None);
+        assert_eq!(cursor.peek_next(), Some(&mut 1));
+        assert_eq!(cursor.peek_back(), Some(&mut 6));
+        assert_eq!(cursor.index(), None);
+        cursor.move_next();
+        cursor.move_next();
+        assert_eq!(cursor.current(), Some(&mut 2));
+        assert_eq!(cursor.peek_next(), Some(&mut 3));
+        assert_eq!(cursor.peek_back(), Some(&mut 1));
+        assert_eq!(cursor.index(), Some(1));
+
+        let mut cursor = m.cursor_mut();
+        cursor.move_back();
+        assert_eq!(cursor.current(), Some(&mut 6));
+        assert_eq!(cursor.peek_next(), None);
+        assert_eq!(cursor.peek_back(), Some(&mut 5));
+        assert_eq!(cursor.index(), Some(5));
+        cursor.move_next();
+        assert_eq!(cursor.current(), None);
+        assert_eq!(cursor.peek_next(), Some(&mut 1));
+        assert_eq!(cursor.peek_back(), Some(&mut 6));
+        assert_eq!(cursor.index(), None);
+        cursor.move_back();
+        cursor.move_back();
+        assert_eq!(cursor.current(), Some(&mut 5));
+        assert_eq!(cursor.peek_next(), Some(&mut 6));
+        assert_eq!(cursor.peek_back(), Some(&mut 4));
+        assert_eq!(cursor.index(), Some(4));
+    }
+
+    #[test]
+    fn test_cursor_mut_insert() {
+        let mut m: UnsafeLinkedList<u32> = UnsafeLinkedList::new();
+        m.extend([1, 2, 3, 4, 5, 6]);
+        let mut cursor = m.cursor_mut();
+        cursor.move_next();
+        cursor.splice_before(Some(7).into_iter().collect());
+        cursor.splice_after(Some(8).into_iter().collect());
+        // check_links(&m);
+        assert_eq!(
+            m.iter().cloned().collect::<Vec<_>>(),
+            &[7, 1, 8, 2, 3, 4, 5, 6]
+        );
+        let mut cursor = m.cursor_mut();
+        cursor.move_next();
+        cursor.move_back();
+        cursor.splice_before(Some(9).into_iter().collect());
+        cursor.splice_after(Some(10).into_iter().collect());
+        check_links(&m);
+        assert_eq!(
+            m.iter().cloned().collect::<Vec<_>>(),
+            &[10, 7, 1, 8, 2, 3, 4, 5, 6, 9]
+        );
+
+        /* remove_current not impl'd
+        let mut cursor = m.cursor_mut();
+        cursor.move_next();
+        cursor.move_prev();
+        assert_eq!(cursor.remove_current(), None);
+        cursor.move_next();
+        cursor.move_next();
+        assert_eq!(cursor.remove_current(), Some(7));
+        cursor.move_prev();
+        cursor.move_prev();
+        cursor.move_prev();
+        assert_eq!(cursor.remove_current(), Some(9));
+        cursor.move_next();
+        assert_eq!(cursor.remove_current(), Some(10));
+        check_links(&m);
+        assert_eq!(m.iter().cloned().collect::<Vec<_>>(), &[1, 8, 2, 3, 4, 5, 6]);
+        */
+
+        let mut a: UnsafeLinkedList<u32> = UnsafeLinkedList::new();
+        a.extend([1, 8, 2, 3, 4, 5, 6]);
+        let mut cursor = a.cursor_mut();
+        cursor.move_next();
+        let mut p: UnsafeLinkedList<u32> = UnsafeLinkedList::new();
+        p.extend([100, 101, 102, 103]);
+        let mut q: UnsafeLinkedList<u32> = UnsafeLinkedList::new();
+        q.extend([200, 201, 202, 203]);
+        cursor.splice_after(p);
+        cursor.splice_before(q);
+        check_links(&m);
+        assert_eq!(
+            a.iter().cloned().collect::<Vec<_>>(),
+            &[200, 201, 202, 203, 1, 100, 101, 102, 103, 8, 2, 3, 4, 5, 6]
+        );
+        let mut cursor = a.cursor_mut();
+        cursor.move_next();
+        cursor.move_back();
+        let tmp = cursor.split_before();
+        assert_eq!(a.clon.into_iter().collect::<Vec<_>>(), &[]);
+        m = tmp;
+        let mut cursor = a.cursor_mut();
+        cursor.move_next();
+        cursor.move_next();
+        cursor.move_next();
+        cursor.move_next();
+        cursor.move_next();
+        cursor.move_next();
+        cursor.move_next();
+        let tmp = cursor.split_after();
+        assert_eq!(
+            tmp.into_iter().collect::<Vec<_>>(),
+            &[102, 103, 8, 2, 3, 4, 5, 6]
+        );
+        check_links(&m);
+        assert_eq!(
+            a.iter().cloned().collect::<Vec<_>>(),
+            &[200, 201, 202, 203, 1, 100, 101]
+        );
+    }
+
+    fn check_links<T: Eq + std::fmt::Debug>(list: &UnsafeLinkedList<T>) {
+        let from_front: Vec<_> = list.iter().collect();
+        let from_back: Vec<_> = list.iter().rev().collect();
+        let re_reved: Vec<_> = from_back.into_iter().rev().collect();
+
+        assert_eq!(from_front, re_reved);
     }
 }

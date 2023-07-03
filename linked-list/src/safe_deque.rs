@@ -16,7 +16,10 @@ type Link<T> = Option<Rc<RefCell<Node<T>>>>;
 
 impl<T> Deque<T> {
     pub fn new() -> Self {
-        Deque { first: None, last: None }
+        Deque {
+            first: None,
+            last: None,
+        }
     }
 
     pub fn push_front(&mut self, value: T) {
@@ -52,7 +55,9 @@ impl<T> Deque<T> {
     pub fn pop_front(&mut self) -> Option<T> {
         self.first.take().map(|old_node| {
             match old_node.borrow_mut().next.take() {
-                None => { self.last.take(); }
+                None => {
+                    self.last.take();
+                }
                 Some(next_node) => {
                     next_node.borrow_mut().prev.take();
                     self.first = Some(next_node)
@@ -65,7 +70,9 @@ impl<T> Deque<T> {
     pub fn pop_back(&mut self) -> Option<T> {
         self.last.take().map(|old_node| {
             match old_node.borrow_mut().prev.take() {
-                None => { self.first.take(); }
+                None => {
+                    self.first.take();
+                }
                 Some(next_node) => {
                     next_node.borrow_mut().next.take();
                     self.last = Some(next_node)
@@ -76,27 +83,27 @@ impl<T> Deque<T> {
     }
 
     pub fn peek_front(&self) -> Option<Ref<T>> {
-        self.first.as_ref().map(|node| {
-            Ref::map(node.borrow(), |rf| &rf.value)
-        })
+        self.first
+            .as_ref()
+            .map(|node| Ref::map(node.borrow(), |rf| &rf.value))
     }
 
     pub fn peek_front_mut(&self) -> Option<RefMut<T>> {
-        self.first.as_ref().map(|node| {
-            RefMut::map(node.borrow_mut(), |rf| &mut rf.value)
-        })
+        self.first
+            .as_ref()
+            .map(|node| RefMut::map(node.borrow_mut(), |rf| &mut rf.value))
     }
 
     pub fn peek_back(&self) -> Option<Ref<T>> {
-        self.last.as_ref().map(|node| {
-            Ref::map(node.borrow(), |rf| &rf.value)
-        })
+        self.last
+            .as_ref()
+            .map(|node| Ref::map(node.borrow(), |rf| &rf.value))
     }
 
     pub fn peek_back_mut(&self) -> Option<RefMut<T>> {
-        self.last.as_ref().map(|node| {
-            RefMut::map(node.borrow_mut(), |rf| &mut rf.value)
-        })
+        self.last
+            .as_ref()
+            .map(|node| RefMut::map(node.borrow_mut(), |rf| &mut rf.value))
     }
 }
 

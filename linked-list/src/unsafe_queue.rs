@@ -28,7 +28,10 @@ type Link<T> = *mut Node<T>;
 
 impl<T> UnsafeQueue<T> {
     pub fn new() -> Self {
-        UnsafeQueue { head: null_mut(), tail: null_mut() }
+        UnsafeQueue {
+            head: null_mut(),
+            tail: null_mut(),
+        }
     }
 
     pub fn push(&mut self, value: T) {
@@ -37,7 +40,7 @@ impl<T> UnsafeQueue<T> {
             next: null_mut(),
         }));
 
-        if !self.tail.is_null() {   
+        if !self.tail.is_null() {
             unsafe {
                 (*self.tail).next = new_tail;
             }
@@ -66,28 +69,28 @@ impl<T> UnsafeQueue<T> {
     }
 
     pub fn peek(&self) -> Option<&T> {
-        unsafe {
-            self.head.as_ref().map(|node| &node.value)
-        }
+        unsafe { self.head.as_ref().map(|node| &node.value) }
     }
 
     pub fn peek_mut(&mut self) -> Option<&mut T> {
-        unsafe {
-            self.head.as_mut().map(|node| &mut node.value)
-        }
+        unsafe { self.head.as_mut().map(|node| &mut node.value) }
     }
 }
 
 impl<T> UnsafeQueue<T> {
     pub fn iter(&self) -> Iter<'_, T> {
         unsafe {
-            Iter { next: self.head.as_ref() }
+            Iter {
+                next: self.head.as_ref(),
+            }
         }
     }
 
     pub fn iter_mut(&mut self) -> IterMut<'_, T> {
         unsafe {
-            IterMut { next: self.head.as_mut() }
+            IterMut {
+                next: self.head.as_mut(),
+            }
         }
     }
 
@@ -96,7 +99,7 @@ impl<T> UnsafeQueue<T> {
     }
 }
 
-impl<T> Iterator for IntoIter<T>  {
+impl<T> Iterator for IntoIter<T> {
     type Item = T;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -104,7 +107,7 @@ impl<T> Iterator for IntoIter<T>  {
     }
 }
 
-impl<'a, T> Iterator for Iter<'a, T>  {
+impl<'a, T> Iterator for Iter<'a, T> {
     type Item = &'a T;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -117,7 +120,7 @@ impl<'a, T> Iterator for Iter<'a, T>  {
     }
 }
 
-impl<'a, T> Iterator for IterMut<'a, T>  {
+impl<'a, T> Iterator for IterMut<'a, T> {
     type Item = &'a mut T;
 
     fn next(&mut self) -> Option<Self::Item> {

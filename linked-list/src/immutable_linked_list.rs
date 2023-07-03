@@ -25,11 +25,15 @@ impl<T> ImmutableList<T> {
             value,
             next: self.head.clone(),
         };
-        ImmutableList { head: Some(Rc::new(node)) }
+        ImmutableList {
+            head: Some(Rc::new(node)),
+        }
     }
 
     pub fn drop_last(&self) -> Self {
-        ImmutableList { head: self.head.as_ref().and_then(|node| node.next.clone()) }
+        ImmutableList {
+            head: self.head.as_ref().and_then(|node| node.next.clone()),
+        }
     }
 
     pub fn first(&self) -> Option<&T> {
@@ -37,7 +41,9 @@ impl<T> ImmutableList<T> {
     }
 
     pub fn iter(&self) -> Iter<'_, T> {
-        Iter { next: self.head.as_deref() }
+        Iter {
+            next: self.head.as_deref(),
+        }
     }
 }
 

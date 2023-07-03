@@ -3,7 +3,7 @@ pub struct LinkedList<T> {
     head: Link<T>,
 }
 
-pub struct IntoIter<T> (LinkedList<T>);
+pub struct IntoIter<T>(LinkedList<T>);
 
 pub struct Iter<'a, T> {
     next: Option<&'a LinkedNode<T>>,
@@ -34,21 +34,18 @@ impl<T> LinkedList<T> {
     }
 
     pub fn pop(&mut self) -> Option<T> {
-        self.head.take()
-            .map(|node| {
-                self.head = node.next;
-                node.value
-            })
+        self.head.take().map(|node| {
+            self.head = node.next;
+            node.value
+        })
     }
 
     pub fn peek(&self) -> Option<&T> {
-        self.head.as_ref()
-            .map(|node| &node.value)
+        self.head.as_ref().map(|node| &node.value)
     }
 
     pub fn peek_mut(&mut self) -> Option<&mut T> {
-        self.head.as_mut()
-            .map(|node| &mut node.value)
+        self.head.as_mut().map(|node| &mut node.value)
     }
 }
 
@@ -67,15 +64,19 @@ impl<T> LinkedList<T> {
     }
 }
 
-impl <T> LinkedList<T> {
+impl<T> LinkedList<T> {
     pub fn iter(&self) -> Iter<'_, T> {
-        Iter { next: self.head.as_deref() }
+        Iter {
+            next: self.head.as_deref(),
+        }
     }
 }
 
-impl <T> LinkedList<T> {
+impl<T> LinkedList<T> {
     pub fn iter_mut(&mut self) -> IterMut<'_, T> {
-        IterMut { next: self.head.as_deref_mut() }
+        IterMut {
+            next: self.head.as_deref_mut(),
+        }
     }
 }
 
@@ -153,9 +154,7 @@ mod test {
 
         assert_eq!(list.peek(), Some(&3));
         assert_eq!(list.peek_mut(), Some(&mut 3));
-        list.peek_mut().map(|value| {
-            *value = 42
-        });
+        list.peek_mut().map(|value| *value = 42);
 
         assert_eq!(list.peek(), Some(&42));
         assert_eq!(list.pop(), Some(42));
@@ -178,7 +177,9 @@ mod test {
     #[test]
     fn iter() {
         let mut list = LinkedList::new();
-        list.push(1); list.push(2); list.push(3);
+        list.push(1);
+        list.push(2);
+        list.push(3);
 
         let mut iter = list.iter();
         assert_eq!(iter.next(), Some(&3));
@@ -189,7 +190,9 @@ mod test {
     #[test]
     fn iter_mut() {
         let mut list = LinkedList::new();
-        list.push(1); list.push(2); list.push(3);
+        list.push(1);
+        list.push(2);
+        list.push(3);
 
         let mut iter = list.iter_mut();
         assert_eq!(iter.next(), Some(&mut 3));
